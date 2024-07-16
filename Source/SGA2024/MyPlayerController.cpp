@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Camera/CameraComponent.h"
 #include "SGA2024Character.h"
+#include "MyPlayerCameraManager.h"
 
 
 AMyPlayerController::AMyPlayerController(const FObjectInitializer& ObjectInitializer)
@@ -30,7 +31,7 @@ void AMyPlayerController::BeginPlay()
 		}
 	}
 
-	CameraMode = ECameraMode::ThirdMode;
+	//CameraMode = ECameraMode::ThirdMode;
 
 }
 
@@ -50,42 +51,124 @@ void AMyPlayerController::SetupInputComponent()
 
 }
 
+void AMyPlayerController::SpawnPlayerCameraManager()
+{
+	Super::SpawnPlayerCameraManager();
+
+	_MyPlayerCameraManager = Cast <AMyPlayerCameraManager>(PlayerCameraManager);
+}
+
+void AMyPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		_MyPlayerCameraManager.Get()->SetCameraMode(TopViewMode);
+	}
+}
+
+
+void AMyPlayerController::SwapCameraMode()
+{
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		if (_MyPlayerCameraManager->GetCameraMode() != CCTVMode)
+		{
+			// Done this way so it's open to multiple Camera Modes
+			CurrentMode = _MyPlayerCameraManager.Get()->GetCameraMode();
+			switch (CurrentMode)
+			{
+			case FirstPersonMode:
+				CurrentMode = ThirdPersonMode;
+				break;
+			case  ThirdPersonMode:
+				CurrentMode = TopViewMode;
+				break;
+			case TopViewMode:
+				CurrentMode = FirstPersonMode;
+				break;
+			}
+
+			_MyPlayerCameraManager.Get()->SetCameraMode(CurrentMode);
+		}
+	}
+}
 
 void AMyPlayerController::SwitchCameraMode()
 {
 	UE_LOG(LogTemp, Warning, TEXT("SwitchCameraMode Select"));
 
-	switch (CameraMode)
+	if (_MyPlayerCameraManager.IsValid())
 	{
-	case FirstMode:		
-		SetCameraThirdMode();
-		break;
-	case  ThirdMode:		
-		SetCameraTopViewMode();
-		break;
-	case TopView:		
-		SetCameraFirstMode();
-		break;
+		CurrentMode = GetCameraMode();
+
+		if (CurrentMode != CCTVMode)
+		{	
+			switch (CurrentMode)
+			{
+			case FirstPersonMode:
+				CurrentMode = ThirdPersonMode;
+				break;
+			case  ThirdPersonMode:
+				CurrentMode = TopViewMode;
+				break;
+			case TopViewMode:
+				CurrentMode = FirstPersonMode;
+				break;
+			}
+
+			_MyPlayerCameraManager.Get()->SetCameraMode(CurrentMode);
+		}
 	}
 }
 
+ECameraMode AMyPlayerController::GetCameraMode()
+{
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		return _MyPlayerCameraManager.Get()->GetCameraMode();
+	}
+
+	return Default;
+}
+
+
 void AMyPlayerController::SetCameraFirstMode()
 {
-	CameraMode = ECameraMode::FirstMode;
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		if (GetCameraMode() != CCTVMode)
+		{
+			CurrentMode = ECameraMode::FirstPersonMode;
+			_MyPlayerCameraManager.Get()->SetCameraMode(CurrentMode);
+		}
+	}
 
-	UCameraComponent*  pCamera = GetFollowCamera();
+	/*UCameraComponent*  pCamera = GetFollowCamera();
 	if(pCamera)
 	{
 		pCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 10.0f));
 		pCamera->SetRelativeRotation(FRotator::ZeroRotator);
 
 		UE_LOG(LogTemp, Warning, TEXT("SetCameraFirstMode"));
-	}
+	}*/
 }
 
 void AMyPlayerController::SetCameraThirdMode()
 {
-	CameraMode = ECameraMode::ThirdMode;
+
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		if (GetCameraMode() != CCTVMode)
+		{
+			CurrentMode = ECameraMode::ThirdPersonMode;
+			_MyPlayerCameraManager.Get()->SetCameraMode(CurrentMode);
+		}
+	}
+
+	/*
+	CurrentMode = ECameraMode::ThirdPersonMode;
 
 	UCameraComponent* pCamera = GetFollowCamera();
 	if (pCamera)
@@ -95,11 +178,23 @@ void AMyPlayerController::SetCameraThirdMode()
 
 		UE_LOG(LogTemp, Warning, TEXT("SetCameraThirdMode"));
 	}
+	*/
 }
 
 void AMyPlayerController::SetCameraTopViewMode()
 {
-	CameraMode = ECameraMode::TopView;
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		if (GetCameraMode() != CCTVMode)
+		{
+			CurrentMode = ECameraMode::TopViewMode;
+			_MyPlayerCameraManager.Get()->SetCameraMode(CurrentMode);
+		}
+	}
+
+
+	/*
+	CurrentMode = ECameraMode::TopViewMode;
 
 	UCameraComponent* pCamera = GetFollowCamera();
 	if (pCamera)
@@ -109,18 +204,48 @@ void AMyPlayerController::SetCameraTopViewMode()
 
 		UE_LOG(LogTemp, Warning, TEXT("SetCameraTopViewMode"));
 	}
+	*/
 }
 
-UCameraComponent* AMyPlayerController::GetFollowCamera()
+//UCameraComponent* AMyPlayerController::GetFollowCamera()
+//{
+//	ASGA2024Character *pCharacter = Cast<ASGA2024Character>(GetCharacter());
+//
+//	if (pCharacter)
+//	{
+//		return pCharacter->GetFollowCamera();
+//	}
+//
+//	return nullptr;
+//}
+
+void AMyPlayerController::OnCameraModeChanged(const ECameraMode newCameraMode, const ECameraMode previousCameraMode)
 {
-	ASGA2024Character *pCharacter = Cast<ASGA2024Character>(GetCharacter());
-
-	if (pCharacter)
-	{
-		return pCharacter->GetFollowCamera();
-	}
-
-	return nullptr;
+	OnCameraModeChangedDelegate.Broadcast(newCameraMode, previousCameraMode);
 }
+
+void AMyPlayerController::ToggleCCTVTargetWithBlend(AActor* NewViewTarget, FRotator NewControlRotation, float BlendTime, EViewTargetBlendFunction BlendFunc, float BlendExp, bool bLockOutgoing)
+{
+
+	if (_MyPlayerCameraManager.IsValid())
+	{
+		const ECameraMode previousCameraMode = GetCameraMode();
+		if (previousCameraMode == CCTVMode && NewViewTarget == GetPawn())
+		{
+			// Go back to the previous Camera Mode
+			_MyPlayerCameraManager.Get()->SetCameraMode(_MyPlayerCameraManager.Get()->GetPreviousCameraMode());
+			SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, BlendExp, bLockOutgoing);
+		}
+		else
+		{
+			_MyPlayerCameraManager.Get()->SetCameraMode(CCTVMode);
+			SetControlRotation(NewControlRotation);
+			SetViewTargetWithBlend(NewViewTarget, BlendTime, BlendFunc, BlendExp, bLockOutgoing);
+		}
+
+		OnCameraModeChanged(GetCameraMode(), previousCameraMode);
+	}
+}
+
 
 

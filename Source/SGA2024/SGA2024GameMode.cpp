@@ -13,10 +13,10 @@ ASGA2024GameMode::ASGA2024GameMode()
 		DefaultPawnClass = PlayerPawnBPClass.Class;
 	}
 
-	static ConstructorHelpers::FClassFinder<APlayerController> DefaultControllClass(TEXT("/Game/ThirdPerson/Blueprints/BP_CameraModeControll"));
+	static ConstructorHelpers::FClassFinder<APlayerController> MyPlayerControllerClass(TEXT("/Game/ThirdPerson/Blueprints/BP_PlayerControll"));
 	
-	if (DefaultControllClass.Class != NULL)
+	if (MyPlayerControllerClass.Class != NULL)
 	{
-		PlayerControllerClass = DefaultControllClass.Class;
+		PlayerControllerClass = MyPlayerControllerClass.Class;
 	}
 }

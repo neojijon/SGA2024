@@ -11,6 +11,10 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 
+#include "MyPlayerController.h"
+#include "MyPlayerCameraManager.h"
+
+
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
 //////////////////////////////////////////////////////////////////////////
@@ -58,13 +62,7 @@ void ASGA2024Character::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
-}
 
-//////////////////////////////////////////////////////////////////////////
-// Input
-
-void ASGA2024Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
@@ -73,6 +71,23 @@ void ASGA2024Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+}
+
+
+//캐릭터가 새로운 컨트롤러에 의해 소유될 때 호출됩니다. 
+void ASGA2024Character::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	_MyPlayerController = Cast<AMyPlayerController>(Controller);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Input
+
+void ASGA2024Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	
 	
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
@@ -98,6 +113,72 @@ void ASGA2024Character::Move(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
+	if (_MyPlayerController.IsValid())
+	{
+		if (_MyPlayerController.Get()->GetCameraMode() == ThirdPersonMode)
+		{
+			MoveThirdPerson(MovementVector);
+			return;
+		}
+
+		if (_MyPlayerController.Get()->GetCameraMode() == TopViewMode)
+		{
+			MoveTopDown(MovementVector);
+			return;
+		}
+
+		if (_MyPlayerController.Get()->GetCameraMode() == FirstPersonMode)
+		{
+			MoveFirstPerson(MovementVector);
+			return;
+		}
+	}
+
+	// Todo Make sure to maintain the control rotation when we change the camera point of view until we release the moving input. 
+	MoveTopDown(MovementVector);
+
+
+	//if (Controller != nullptr)
+	//{
+	//	// find out which way is forward
+	//	const FRotator Rotation = Controller->GetControlRotation();
+	//	const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+	//	// get forward vector
+	//	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	//
+	//	// get right vector 
+	//	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+	//	// add movement 
+	//	AddMovementInput(ForwardDirection, MovementVector.Y);
+	//	AddMovementInput(RightDirection, MovementVector.X);
+	//}
+}
+
+void ASGA2024Character::MoveTopDown(const FVector2D& movementVector)
+{
+	if (Controller != nullptr)
+	{
+		// add movement, Todo replace unit vectors with an arbitrary direction once it's changed per map
+		AddMovementInput(FVector::UnitX(), movementVector.Y);
+		AddMovementInput(FVector::UnitY(), movementVector.X);
+	}
+}
+
+
+void ASGA2024Character::MoveFirstPerson(const FVector2D& movementVector)
+{
+	if (Controller != nullptr)
+	{
+		// add movement 
+		AddMovementInput(GetActorForwardVector(), movementVector.Y);
+		AddMovementInput(GetActorRightVector(), movementVector.X);
+	}
+}
+
+void ASGA2024Character::MoveThirdPerson(const FVector2D& movementVector)
+{
 	if (Controller != nullptr)
 	{
 		// find out which way is forward
@@ -106,15 +187,16 @@ void ASGA2024Character::Move(const FInputActionValue& Value)
 
 		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	
+
 		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
 		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+		AddMovementInput(ForwardDirection, movementVector.Y);
+		AddMovementInput(RightDirection, movementVector.X);
 	}
 }
+
 
 void ASGA2024Character::Look(const FInputActionValue& Value)
 {
@@ -123,8 +205,16 @@ void ASGA2024Character::Look(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		// add yaw and pitch input to controller
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
+		if (_MyPlayerController.IsValid())
+		{
+			if ( (_MyPlayerController.Get()->GetCameraMode() == FirstPersonMode) ||
+				 (_MyPlayerController.Get()->GetCameraMode() == ThirdPersonMode) )
+			{
+
+				// add yaw and pitch input to controller
+				AddControllerYawInput(LookAxisVector.X);
+				AddControllerPitchInput(LookAxisVector.Y);
+			}
+		}
 	}
 }

@@ -13,6 +13,8 @@ class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
 
+class AMyPlayerController;
+
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 UCLASS(config=Game)
@@ -53,9 +55,19 @@ protected:
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
 
+	//모드에 따른 움직임 제한
+	void MoveTopDown(const FVector2D& movementVector);
+
+	void MoveThirdPerson(const FVector2D& movementVector);
+
+	void MoveFirstPerson(const FVector2D& movementVector);
+
+
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
-			
+		
+protected:
+	TWeakObjectPtr<AMyPlayerController> _MyPlayerController;
 
 protected:
 	// APawn interface
@@ -64,10 +76,12 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
-public:
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	virtual void PossessedBy(AController* NewController) override;
+
+//public:
+//	/** Returns CameraBoom subobject **/
+//	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+//	/** Returns FollowCamera subobject **/
+//	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
 
